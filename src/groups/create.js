@@ -7,53 +7,76 @@ const db = require('../database');
 
 module.exports = function (Groups) {
 	Groups.create = async function (data) {
-		const isSystem = isSystemGroup(data);
+		// Determine basic properties
 		const timestamp = data.timestamp || Date.now();
-		let disableJoinRequests = parseInt(data.disableJoinRequests, 10) === 1 ? 1 : 0;
-		if (data.name === 'administrators') {
-			disableJoinRequests = 1;
-		}
+		const isSystem = isSystemGroup(data);
+		const disableJoinRequests = getDisableJoinRequests(data);
 		const disableLeave = parseInt(data.disableLeave, 10) === 1 ? 1 : 0;
 		const isHidden = parseInt(data.hidden, 10) === 1;
+		const isPrivate = data.private ? parseInt(data.private, 10) === 1 : true;
+		const memberCount = data.ownerUid ? 1 : 0;
 
+		// Validate group name
 		Groups.validateGroupName(data.name);
 
+		// Check for existing groups
+		await checkGroupExistence(data.name);
+
+		// Create group data
+		const groupData = createGroupData(data, timestamp, isSystem, isHidden, isPrivate, disableJoinRequests, disableLeave, memberCount);
+
+		// Fire hooks and save group data
+		await plugins.hooks.fire('filter:group.create', { group: groupData, data });
+		await saveGroupData(groupData, data.ownerUid, timestamp);
+
+		// Return updated group data
+		const updatedGroupData = await Groups.getGroupData(groupData.name);
+		plugins.hooks.fire('action:group.create', { group: updatedGroupData });
+		return updatedGroupData;
+	};
+
+	function getDisableJoinRequests(data) {
+		if (data.name === 'administrators') return 1;
+		return parseInt(data.disableJoinRequests, 10) === 1 ? 1 : 0;
+	}
+
+	async function checkGroupExistence(name) {
 		const [exists, privGroupExists] = await Promise.all([
-			meta.userOrGroupExists(data.name),
-			privilegeGroupExists(data.name),
+			meta.userOrGroupExists(name),
+			privilegeGroupExists(name),
 		]);
 		if (exists || privGroupExists) {
 			throw new Error('[[error:group-already-exists]]');
 		}
+	}
 
-		const memberCount = data.hasOwnProperty('ownerUid') ? 1 : 0;
-		const isPrivate = data.hasOwnProperty('private') && data.private !== undefined ? parseInt(data.private, 10) === 1 : true;
-		let groupData = {
+	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate, disableJoinRequests, disableLeave, memberCount) {
+		return {
 			name: data.name,
 			slug: slugify(data.name),
 			createtime: timestamp,
 			userTitle: data.userTitle || data.name,
 			userTitleEnabled: parseInt(data.userTitleEnabled, 10) === 1 ? 1 : 0,
 			description: data.description || '',
-			memberCount: memberCount,
+			memberCount,
 			hidden: isHidden ? 1 : 0,
 			system: isSystem ? 1 : 0,
 			private: isPrivate ? 1 : 0,
-			disableJoinRequests: disableJoinRequests,
-			disableLeave: disableLeave,
+			disableJoinRequests,
+			disableLeave,
 		};
+	}
 
-		await plugins.hooks.fire('filter:group.create', { group: groupData, data: data });
-
+	async function saveGroupData(groupData, ownerUid, timestamp) {
 		await db.sortedSetAdd('groups:createtime', groupData.createtime, groupData.name);
 		await db.setObject(`group:${groupData.name}`, groupData);
 
-		if (data.hasOwnProperty('ownerUid')) {
-			await db.setAdd(`group:${groupData.name}:owners`, data.ownerUid);
-			await db.sortedSetAdd(`group:${groupData.name}:members`, timestamp, data.ownerUid);
+		if (ownerUid) {
+			await db.setAdd(`group:${groupData.name}:owners`, ownerUid);
+			await db.sortedSetAdd(`group:${groupData.name}:members`, timestamp, ownerUid);
 		}
 
-		if (!isHidden && !isSystem) {
+		if (!groupData.hidden && !groupData.system) {
 			await db.sortedSetAddBulk([
 				['groups:visible:createtime', timestamp, groupData.name],
 				['groups:visible:memberCount', groupData.memberCount, groupData.name],
@@ -64,11 +87,11 @@ module.exports = function (Groups) {
 		if (!Groups.isPrivilegeGroup(groupData.name)) {
 			await db.setObjectField('groupslug:groupname', groupData.slug, groupData.name);
 		}
+	}
 
-		groupData = await Groups.getGroupData(groupData.name);
-		plugins.hooks.fire('action:group.create', { group: groupData });
-		return groupData;
-	};
+	async function privilegeGroupExists(name) {
+		return Groups.isPrivilegeGroup(name) && await db.isSortedSetMember('groups:createtime', name);
+	}
 
 	function isSystemGroup(data) {
 		return data.system === true || parseInt(data.system, 10) === 1 ||
