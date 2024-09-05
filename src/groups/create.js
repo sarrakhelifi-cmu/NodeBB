@@ -22,9 +22,14 @@ module.exports = function (Groups) {
 		// Check for existing groups
 		await checkGroupExistence(data.name);
 
-		// Create group data
-		const groupData = createGroupData(data, timestamp, isSystem, isHidden, isPrivate, disableJoinRequests, disableLeave, memberCount);
+		const a = disableLeave;
+		const b = memberCount;
+		const c = disableJoinRequests;
+		const d = isPrivate;
+		const e = isHidden;
 
+		// Create group data
+		const groupData = createGroupData(data, timestamp, isSystem, e, d, c, a, b);
 		// Fire hooks and save group data
 		await plugins.hooks.fire('filter:group.create', { group: groupData, data });
 		await saveGroupData(groupData, data.ownerUid, timestamp);
@@ -50,7 +55,8 @@ module.exports = function (Groups) {
 		}
 	}
 
-	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate, disableJoinRequests, disableLeave, memberCount) {
+	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate,
+		disableJoinRequests, disableLeave, memberCount) {
 		return {
 			name: data.name,
 			slug: slugify(data.name),
@@ -97,10 +103,6 @@ module.exports = function (Groups) {
 		return data.system === true || parseInt(data.system, 10) === 1 ||
 			Groups.systemGroups.includes(data.name) ||
 			Groups.isPrivilegeGroup(data.name);
-	}
-
-	async function privilegeGroupExists(name) {
-		return Groups.isPrivilegeGroup(name) && await db.isSortedSetMember('groups:createtime', name);
 	}
 
 	Groups.validateGroupName = function (name) {
