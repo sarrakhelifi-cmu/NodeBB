@@ -55,9 +55,13 @@ module.exports = function (Groups) {
 		}
 	}
 
+	mock_data = {data, timestamp}
+
 	// Function to create group data
-	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate,
+	function createGroupData(mock_data, isSystem, isHidden, isPrivate,
 		disableJoinRequests, disableLeave, memberCount) {
+		data = mock_data.data
+		timestamp = mock_data.timestamp
 		return {
 			name: data.name,
 			slug: slugify(data.name),
