@@ -20,7 +20,7 @@ module.exports = function (Groups) {
 		if (exists || privGroupExists) {
 			throw new Error('[[error:group-already-exists]]');
 		}
-
+		console.log('sarra : refactored code executed'); 
 		const memberCount = data.hasOwnProperty('ownerUid') ? 1 : 0;
 		const isPrivate = data.hasOwnProperty('private') && data.private !== undefined ? parseInt(data.private, 10) === 1 : true;
 		let groupData = {
