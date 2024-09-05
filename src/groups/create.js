@@ -54,14 +54,9 @@ module.exports = function (Groups) {
 			throw new Error('[[error:group-already-exists]]');
 		}
 	}
-
-	mock_dat = {data, timestamp}
-
 	// Function to create group data
-	function createGroupData(mock_dat, isSystem, isHidden, isPrivate,
+	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate,
 		disableJoinRequests, disableLeave, memberCount) {
-		data = mock_dat.data
-		timestamp = mock_dat.timestamp
 		return {
 			name: data.name,
 			slug: slugify(data.name),
