@@ -55,6 +55,7 @@ module.exports = function (Groups) {
 		}
 	}
 
+	// Function to create group data
 	function createGroupData(data, timestamp, isSystem, isHidden, isPrivate,
 		disableJoinRequests, disableLeave, memberCount) {
 		return {
